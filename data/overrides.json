@@ -1,0 +1,64 @@
+{
+  "West Wing": {
+    "type": "tv",
+    "query": "The West Wing"
+  },
+  "This Old House": {
+    "type": "tv"
+  },
+  "All in the Family": {
+    "type": "tv"
+  },
+  "Mutual of Omaha's Wild Kingdom": {
+    "type": "tv"
+  },
+  "J Campbell and the Power of Myth": {
+    "type": "tv",
+    "query": "Joseph Campbell and the Power of Myth"
+  },
+  "R. Benchley and the Knights of the Algonquin": {
+    "query": "Robert Benchley and the Knights of the Algonquin"
+  },
+  "Tears and Laughter": {
+    "query": "Tears and Laughter: The Joan and Melissa Rivers Story"
+  },
+  "The Arrival of a Train": {
+    "query": "The Arrival of a Train at La Ciotat"
+  },
+  "The Meaning of Life": {
+    "query": "Monty Python's The Meaning of Life"
+  },
+  "Nine ½ Weeks": {
+    "query": "9½ Weeks"
+  },
+  "Star Wars: Episode III": {
+    "query": "Star Wars: Episode III - Revenge of the Sith"
+  },
+  "Star Wars: Episode V": {
+    "query": "The Empire Strikes Back"
+  },
+  "Harry Potter and the Sorcerer's Stone": {
+    "query": "Harry Potter and the Philosopher's Stone"
+  },
+  "Sunset Blvd.": {
+    "query": "Sunset Boulevard"
+  },
+  "Christmas Vacation": {
+    "query": "National Lampoon's Christmas Vacation"
+  },
+  "Animal House": {
+    "query": "National Lampoon's Animal House"
+  },
+  "MASH": {
+    "year": 1970
+  },
+  "Magnificent Ambersons": {
+    "wiki": "The Magnificent Ambersons (film)"
+  },
+  "Better Off Dead...": {
+    "wiki": "Better Off Dead (1985 film)"
+  },
+  "The 2000 Year Old Man": {
+    "wiki": "2000 Year Old Man"
+  }
+}
