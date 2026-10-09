@@ -1,7 +1,7 @@
 // Offline support. App files: served from cache, refreshed in the background.
 // Posters (Wikipedia or TMDB): cached the first time they're seen, capped so the cache can't grow forever.
 
-const APP_CACHE = 'smc-app-v4';
+const APP_CACHE = 'smc-app-v5';
 const POSTER_CACHE = 'smc-posters-v1';
 const MAX_POSTERS = 700;
 const POSTER_HOSTS = new Set(['image.tmdb.org', 'upload.wikimedia.org', 'thumb.wikimedia.org']);

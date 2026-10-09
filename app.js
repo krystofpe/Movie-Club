@@ -127,6 +127,14 @@ const mark = id => store.items[id] || { seen: false, rating: 0, date: null, note
 const watchedCount = () => movies.reduce((n, m) => n + (mark(m.id).seen ? 1 : 0), 0);
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 
+// Google Analytics (set up in index.html, live site only). Events say what she did, never which movie.
+const TAB_TITLES = { list: 'Checklist', picker: 'Movie Night', stats: 'Stats' };
+const track = (name, params) => window.gtag?.('event', name, params);
+function trackTab(tab) {
+  window.gtag?.('set', { page_title: TAB_TITLES[tab] }); // so the events that follow count toward this tab too
+  track('page_view');
+}
+
 function shortDate(iso) {
   const d = new Date(iso + 'T12:00:00');
   const opts = d.getFullYear() === new Date().getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', year: 'numeric' };
@@ -304,11 +312,21 @@ const toGo = left => (left ? `${plural(left, 'cozy night')} to go` : 'all caught
 // ---------- actions ----------
 
 function setMark(id, patch) {
-  const next = cleanRecord({ ...mark(id), ...patch, t: Date.now() });
+  const prev = mark(id);
+  const next = cleanRecord({ ...prev, ...patch, t: Date.now() });
   if (next) store.items[id] = next;
   else delete store.items[id];
   save();
   updateCard(id);
+  trackMark(prev, mark(id));
+}
+
+// every mark change (card or sheet) passes through setMark, so this is the one place to count them
+function trackMark(a, b) {
+  if (b.seen && !a.seen) track('mark_watched');
+  if (b.rating && b.rating !== a.rating) track('rate_movie', { rating: b.rating });
+  if (b.fav && !a.fav) track('favorite');
+  if (b.note && b.note !== a.note) track('write_note');
 }
 
 function toggleWatched(id) {
@@ -374,6 +392,7 @@ function showTab(tab) {
   if (tab === 'picker') renderPicker();
   if (tab === 'list') applyView();
   scrollTo({ top: 0 });
+  trackTab(tab);
 }
 
 // ---------- movie night ----------
@@ -421,6 +440,7 @@ function spin() {
   const pool = poolList(ui.pool);
   if (!pool.length || picker.phase === 'popping') return;
   buzz();
+  track('popcorn_spin', { pool: ui.pool });
   const choose = () => {
     let opts = pool.filter(m => m.id !== picker.pickId);
     if (!opts.length) opts = pool;
@@ -617,6 +637,7 @@ function saveSheet() {
       rebuildMovies();
       els.list.append(buildCard(nm));
       toast('Added to the list');
+      track('add_movie');
     } else {
       prepare(Object.assign(m, { title, year })); // m is the object held in store.custom
       fillCard(m);
@@ -674,6 +695,7 @@ async function exportBackup() {
     try {
       await navigator.share({ files: [file], title: 'Movie Club backup' });
       toast('Backup saved');
+      track('backup_save');
       return;
     } catch (e) {
       if (e.name === 'AbortError') return;
@@ -687,6 +709,7 @@ async function exportBackup() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
   toast('Backup saved');
+  track('backup_save');
 }
 
 let pending = null;
@@ -729,6 +752,7 @@ function applyImport(mode) {
   els.importDlg.close();
   renderAll();
   toast(`Backup restored — ${plural(watchedCount(), 'movie')} watched`);
+  track('backup_restore', { mode });
 }
 
 async function resetAll() {
@@ -743,6 +767,7 @@ async function resetAll() {
   save();
   renderAll();
   toast('All marks cleared');
+  track('clear_marks');
 }
 
 // ---------- confirm sheet ----------
@@ -885,6 +910,7 @@ function wire() {
     save();
     renderPicker();
     toast("Tonight's pick is set");
+    track('tonight_pick');
   });
   $('#r-mark').addEventListener('click', () => {
     const id = picker.pickId;
@@ -949,6 +975,7 @@ function wire() {
 }
 
 async function init() {
+  trackTab(ui.tab);
   applyTheme();
   buildSheetStars();
   wire();

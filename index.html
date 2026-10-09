@@ -25,6 +25,19 @@
       if (t === 'late' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) document.querySelector('meta[name="theme-color"]').content = '#2B191C';
     } catch {}
   </script>
+  <script>
+    // Google Analytics: visits, tabs and taps, never movie titles. Off everywhere but the live site.
+    if (location.hostname === 'krystofpe.github.io') {
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { dataLayer.push(arguments); };
+      gtag('js', new Date());
+      gtag('config', 'G-KQB9ENWBYL', { send_page_view: false }); // app.js sends one per tab
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=G-KQB9ENWBYL';
+      document.head.append(s);
+    }
+  </script>
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" type="module"></script>
 </head>

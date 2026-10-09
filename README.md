@@ -8,7 +8,7 @@ A phone app for the Stars Hollow Movie Club poster, styled after the *Movie Nigh
 
 The **Late night** button switches to a dim burgundy theme. Until it's tapped, the app follows the phone's dark mode.
 
-It's a static web app (plain HTML, CSS and JavaScript, no build step). It installs to the home screen and works offline. Everything you mark is stored on the phone itself. There is no account and no server.
+It's a static web app (plain HTML, CSS and JavaScript, no build step). It installs to the home screen and works offline. Everything you mark is stored on the phone itself. There is no account and no server. The live site counts visits with Google Analytics (see *Analytics*), but no movie titles or notes are sent.
 
 ## Run it locally
 
@@ -84,6 +84,19 @@ The same `data/overrides.json` holds TMDB fixes: `"type": "tv"`, `"query"`, `"ye
 ## Changing the list
 
 Edit `data/titles.txt` (one title per line, optional `(Year)` at the end), then run `node scripts/enrich-tmdb.mjs` and `node scripts/fetch-posters-wikipedia.mjs`. Each movie's saved marks are keyed by an id made from its title. Fixing a typo in a title therefore resets that one movie's mark, and nothing else.
+
+## Analytics
+
+The live site sends usage to Google Analytics 4 (property *Movie Club*, measurement ID `G-KQB9ENWBYL`, set in `index.html`). It runs only on `krystofpe.github.io`, so a local copy sends nothing. The tabs don't change the URL, so `app.js` sends a page view for each tab: *Checklist*, *Movie Night* and *Stats*. Events are tagged with the tab they happened on:
+
+| Event | When |
+| --- | --- |
+| `mark_watched`, `rate_movie` (`rating`), `favorite`, `write_note` | A movie is ticked, rated, hearted or given a note, on its card or in its sheet |
+| `popcorn_spin` (`pool`), `tonight_pick` | The popcorn bucket picks a movie, and it's saved as tonight's pick |
+| `add_movie` | A movie that isn't on the poster is added |
+| `backup_save`, `backup_restore` (`mode`), `clear_marks` | The buttons under *Keep it safe* |
+
+The events say what was done, never to which movie, and never carry note text. Visits made offline aren't counted. To see `rating`, `pool` or `mode` in the reports, register them in GA under **Admin → Custom definitions** (Czech UI: **Správce → Vlastní definice**).
 
 ## Files
 
