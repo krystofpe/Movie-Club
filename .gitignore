@@ -2,3 +2,7 @@ node_modules/
 .env
 *.local
 .DS_Store
+
+# her watch list and generated backups stay on this machine
+watched.txt
+movie-club-backup-*.json
