@@ -1,12 +1,11 @@
 // Offline support. App files: served from cache, refreshed in the background.
 // Posters (Wikipedia or TMDB): cached the first time they're seen, capped so the cache can't grow forever.
 
-const APP_CACHE = 'smc-app-v3';
+const APP_CACHE = 'smc-app-v4';
 const POSTER_CACHE = 'smc-posters-v1';
 const MAX_POSTERS = 700;
 const POSTER_HOSTS = new Set(['image.tmdb.org', 'upload.wikimedia.org', 'thumb.wikimedia.org']);
 const APP_FILES = [
-  './',
   'index.html',
   'styles.css',
   'app.js',
@@ -22,7 +21,9 @@ const APP_FILES = [
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(APP_CACHE).then(c => c.addAll(APP_FILES)).then(() => self.skipWaiting()));
+  // cache: 'reload' bypasses the HTTP cache, so a new version never precaches stale copies
+  const fresh = APP_FILES.map(f => new Request(f, { cache: 'reload' }));
+  event.waitUntil(caches.open(APP_CACHE).then(c => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -50,7 +51,8 @@ self.addEventListener('fetch', event => {
 async function staleWhileRevalidate(key, request, event) {
   const cache = await caches.open(APP_CACHE);
   const cached = await cache.match(key, { ignoreSearch: true });
-  const network = fetch(request)
+  // no-cache: revalidate with the server (a cheap 304 when unchanged) instead of trusting the HTTP cache
+  const network = fetch(key, { cache: 'no-cache' })
     .then(res => {
       if (res.ok) cache.put(key, res.clone());
       return res;

@@ -83,7 +83,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 :focus-visible { outline: 3px solid var(--rose); outline-offset: 2px; }
-input:focus-visible { outline: none; }
+input:focus-visible, textarea:focus-visible { outline: none; }
 
 .serif { font-family: var(--serif); }
 .hand { font-family: var(--hand); color: var(--ink2); }
@@ -188,7 +188,8 @@ input:focus-visible { outline: none; }
   border-radius: 999px;
   background: var(--paper);
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
+  appearance: none;
   outline: none;
   transition: box-shadow 0.2s, border-color 0.2s;
 }

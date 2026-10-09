@@ -15,10 +15,15 @@
   <meta name="apple-mobile-web-app-title" content="Movie Club">
   <link rel="preload" href="fonts/nunito.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/playfair.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/playfair-italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/caveat.woff2" as="font" type="font/woff2" crossorigin>
   <script>
     // apply a saved theme before first paint, so late-night users don't get a cream flash
-    try { const t = JSON.parse(localStorage.getItem('smc.ui'))?.theme; if (t === 'late' || t === 'light') document.documentElement.dataset.theme = t; } catch {}
+    try {
+      const t = JSON.parse(localStorage.getItem('smc.ui'))?.theme;
+      if (t === 'late' || t === 'light') document.documentElement.dataset.theme = t;
+      if (t === 'late' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) document.querySelector('meta[name="theme-color"]').content = '#2B191C';
+    } catch {}
   </script>
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" type="module"></script>
@@ -247,6 +252,14 @@
     </button>
   </nav>
 
+  <template id="stars-tpl">
+    <button type="button" role="radio" data-star="1" aria-label="1 star"><svg aria-hidden="true"><use href="#i-star"/></svg></button>
+    <button type="button" role="radio" data-star="2" aria-label="2 stars"><svg aria-hidden="true"><use href="#i-star"/></svg></button>
+    <button type="button" role="radio" data-star="3" aria-label="3 stars"><svg aria-hidden="true"><use href="#i-star"/></svg></button>
+    <button type="button" role="radio" data-star="4" aria-label="4 stars"><svg aria-hidden="true"><use href="#i-star"/></svg></button>
+    <button type="button" role="radio" data-star="5" aria-label="5 stars"><svg aria-hidden="true"><use href="#i-star"/></svg></button>
+  </template>
+
   <template id="card-tpl">
     <li class="movie">
       <button type="button" class="check" aria-pressed="false">
@@ -324,7 +337,7 @@
     </form>
   </dialog>
 
-  <dialog class="sheet" id="import-dlg" aria-labelledby="i-title">
+  <dialog class="sheet" id="import-dlg" aria-labelledby="i-title" aria-describedby="i-summary">
     <div class="sheet-in">
       <div class="handle" aria-hidden="true"></div>
       <h3 class="serif sheet-title" id="i-title">Restore this backup?</h3>
@@ -335,6 +348,18 @@
         <button type="button" class="btn-text" id="i-cancel">Cancel</button>
       </div>
     </div>
+  </dialog>
+
+  <dialog class="sheet" id="confirm-dlg" aria-labelledby="c-title" aria-describedby="c-text">
+    <form class="sheet-in" method="dialog">
+      <div class="handle" aria-hidden="true"></div>
+      <h3 class="serif sheet-title" id="c-title"></h3>
+      <p class="sheet-note" id="c-text"></p>
+      <div class="stack">
+        <button type="submit" class="btn-accent" id="c-ok" value="ok"></button>
+        <button type="submit" class="btn-outline" id="c-cancel" value="cancel">Cancel</button>
+      </div>
+    </form>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

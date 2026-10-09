@@ -25,6 +25,8 @@ const els = {
   loadError: $('#load-error'),
   sheet: $('#sheet'),
   importDlg: $('#import-dlg'),
+  confirmDlg: $('#confirm-dlg'),
+  starsTpl: $('#stars-tpl'),
   importFile: $('#import-file'),
   toast: $('#toast'),
   bucket: $('#bucket'),
@@ -117,7 +119,7 @@ function askPersist() {
 
 // ---------- helpers ----------
 
-const fold = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const searchKey = s => fold(s).replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
 const sortKey = s => searchKey(s).replace(/^(the|a|an) /, '');
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD in local time
@@ -134,21 +136,24 @@ function shortDate(iso) {
 const posterUrl = (m, size) => m.img || (m.poster ? IMG_BASE + size + m.poster : null);
 
 function fillPoster(el, m, size) {
+  const url = (m && posterUrl(m, size)) || '';
+  if (el.dataset.src === url) return; // already showing this poster (or already found it broken)
+  el.dataset.src = url;
   el.textContent = '';
-  const url = posterUrl(m, size);
   el.hidden = !url;
   if (!url) return;
   const img = new Image();
   img.alt = `Poster for ${m.title}`;
   img.decoding = 'async';
-  img.crossOrigin = 'anonymous';
+  img.crossOrigin = 'anonymous'; // a CORS (non-opaque) response is what lets sw.js cache the poster
   img.src = url;
   img.onerror = () => { el.hidden = true; };
   el.append(img);
 }
 
 const buzz = () => navigator.vibrate?.(12);
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const motionMQ = matchMedia('(prefers-reduced-motion: reduce)');
+const reducedMotion = () => motionMQ.matches;
 
 function bump(el) {
   el.classList.remove('pop');
@@ -170,36 +175,53 @@ function rebuildMovies() {
   movies.forEach(m => byId.set(m.id, m));
 }
 
+// ---------- stars ----------
+
+function mountStars(box) {
+  box.append(els.starsTpl.content.cloneNode(true));
+}
+
+// paints a 5-star radio group; one tab stop per group (the chosen star, or the first when unrated)
+function paintStars(box, rating) {
+  $$('button', box).forEach((b, i) => {
+    b.classList.toggle('on', i < rating);
+    b.setAttribute('aria-checked', String(i + 1 === rating));
+    b.tabIndex = i + 1 === rating || (!rating && i === 0) ? 0 : -1;
+  });
+}
+
+// arrow keys move between the stars of one group
+function starKeys(e) {
+  const btn = e.target.closest('.stars button');
+  const step = btn && { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+  if (!step) return;
+  e.preventDefault();
+  const btns = $$('button', btn.parentElement);
+  btns[Math.min(4, Math.max(0, btns.indexOf(btn) + step))].focus();
+}
+
 // ---------- cards ----------
 
 function buildCard(m) {
   const li = els.tpl.content.firstElementChild.cloneNode(true);
   li.dataset.id = m.id;
-  const stars = $('.stars', li);
-  stars.setAttribute('aria-label', `Rating for ${m.title}`);
-  for (let i = 1; i <= 5; i++) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.dataset.star = i;
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-label', plural(i, 'star'));
-    b.innerHTML = '<svg aria-hidden="true"><use href="#i-star"/></svg>';
-    stars.append(b);
-  }
-  $('.note', li).setAttribute('aria-label', `Note for ${m.title}`);
-  $('.fav', li).setAttribute('aria-label', `Favorite: ${m.title}`);
-  $('.edit', li).setAttribute('aria-label', `Open ${m.title}`);
-  $('.check', li).setAttribute('aria-label', `Watched: ${m.title}`);
+  mountStars($('.stars', li));
   cards.set(m.id, li);
   fillCard(m);
   return li;
 }
 
+// title, year and the labels that mention the title (so a rename updates them too)
 function fillCard(m) {
   const li = cards.get(m.id);
   if (!li) return;
   $('.movie-open', li).textContent = m.title;
   $('.movie-year', li).textContent = m.year || '';
+  $('.stars', li).setAttribute('aria-label', `Rating for ${m.title}`);
+  $('.note', li).setAttribute('aria-label', `Note for ${m.title}`);
+  $('.fav', li).setAttribute('aria-label', `Favorite: ${m.title}`);
+  $('.edit', li).setAttribute('aria-label', `Open ${m.title}`);
+  $('.check', li).setAttribute('aria-label', `Watched: ${m.title}`);
   updateCard(m.id);
 }
 
@@ -209,10 +231,7 @@ function updateCard(id) {
   const r = mark(id);
   $('.check', li).setAttribute('aria-pressed', String(r.seen));
   $('.fav', li).setAttribute('aria-pressed', String(r.fav));
-  $$('.stars button', li).forEach((b, i) => {
-    b.classList.toggle('on', i < r.rating);
-    b.setAttribute('aria-checked', String(i + 1 === r.rating));
-  });
+  paintStars($('.stars', li), r.rating);
   const pill = $('.pill', li);
   pill.hidden = !r.seen;
   pill.textContent = r.date ? `watched ${shortDate(r.date)}` : 'watched';
@@ -223,11 +242,11 @@ function updateCard(id) {
 // ---------- view ----------
 
 function compare(a, b) {
-  const ra = mark(a.id), rb = mark(b.id);
   if (ui.sort === 'year') {
     const d = (a.year || 9999) - (b.year || 9999);
     if (d) return d;
   } else if (ui.sort === 'recent') {
+    const ra = mark(a.id), rb = mark(b.id);
     if (ra.seen !== rb.seen) return ra.seen ? -1 : 1;
     if (ra.seen) {
       const d = (rb.date || '').localeCompare(ra.date || '') || rb.t - ra.t;
@@ -237,7 +256,8 @@ function compare(a, b) {
   return a.sortKey.localeCompare(b.sortKey);
 }
 
-function applyView() {
+// resort = false when only the search text changed: the query never affects the order
+function applyView(resort = true) {
   const q = searchKey(ui.q);
   let shown = 0;
   for (const m of movies) {
@@ -247,11 +267,13 @@ function applyView() {
     cards.get(m.id).hidden = !ok;
     if (ok) shown++;
   }
-  const ordered = [...movies].sort(compare);
-  const order = ordered.map(m => m.id).join();
-  if (order !== lastOrder) {
-    els.list.append(...ordered.map(m => cards.get(m.id)));
-    lastOrder = order;
+  if (resort) {
+    const ordered = [...movies].sort(compare);
+    const order = ordered.map(m => m.id).join();
+    if (order !== lastOrder) {
+      els.list.append(...ordered.map(m => cards.get(m.id)));
+      lastOrder = order;
+    }
   }
   els.empty.hidden = shown > 0;
   if (!shown) {
@@ -334,7 +356,8 @@ const noteTimers = new Map();
 function saveNote(id, value) {
   clearTimeout(noteTimers.get(id));
   noteTimers.delete(id);
-  if (value !== mark(id).note) setMark(id, { note: value });
+  const note = value.trim();
+  if (note !== mark(id).note) setMark(id, { note });
 }
 
 // ---------- tabs ----------
@@ -482,6 +505,7 @@ function renderStats() {
     $('.t', row).style.width = `${(d.t / maxT) * 100}%`;
     $('.w', row).style.width = `${(d.w / maxT) * 100}%`;
     row.lastChild.textContent = `${d.w}/${d.t}`;
+    row.setAttribute('role', 'img');
     row.setAttribute('aria-label', `${k}s: ${d.w} of ${d.t} watched`);
     box.append(row);
   }
@@ -493,7 +517,7 @@ function renderStats() {
   ol.textContent = '';
   top.forEach((m, i) => {
     const li = document.createElement('li');
-    li.innerHTML = '<span class="top-rank"></span><span><span class="top-title"></span> <span class="top-year"></span></span><span class="top-stars"></span>';
+    li.innerHTML = '<span class="top-rank"></span><span><span class="top-title"></span> <span class="top-year"></span></span><span class="top-stars" role="img"></span>';
     $('.top-rank', li).textContent = i + 1;
     $('.top-title', li).textContent = m.title;
     $('.top-year', li).textContent = m.year || '';
@@ -511,6 +535,7 @@ let editing = null; // { mode: 'add' } | { mode: 'edit', id, draft }
 
 function openSheet(mode, id) {
   const m = id && byId.get(id);
+  if (mode === 'edit' && !m) return;
   const custom = mode === 'add' || m?.custom;
   editing = { mode, id, draft: m ? { ...mark(m.id) } : null };
   $('#s-title').textContent = mode === 'add' ? 'Add a movie' : m.title;
@@ -525,8 +550,7 @@ function openSheet(mode, id) {
     link.href = `https://www.themoviedb.org/${m.tmdb.type}/${m.tmdb.id}`;
     link.textContent = 'More on TMDB';
   }
-  if (m) fillPoster($('#s-poster'), m, 'w342');
-  else $('#s-poster').hidden = true;
+  fillPoster($('#s-poster'), m, 'w342');
   for (const f of ['#s-toggles', '#f-rating', '#f-note']) $(f).hidden = mode === 'add';
   $('#f-title').hidden = !custom;
   $('#f-year').hidden = !custom;
@@ -548,23 +572,12 @@ function syncSheet() {
   $('#s-fav').setAttribute('aria-pressed', String(d.fav));
   $('#f-date').hidden = !d.seen;
   $('#s-in-date').value = d.date || '';
-  $$('#s-rating button').forEach((b, i) => {
-    b.classList.toggle('on', i < d.rating);
-    b.setAttribute('aria-checked', String(i + 1 === d.rating));
-  });
+  paintStars($('#s-rating'), d.rating);
 }
 
 function buildSheetStars() {
   const box = $('#s-rating');
-  for (let i = 1; i <= 5; i++) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.dataset.star = i;
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-label', plural(i, 'star'));
-    b.innerHTML = '<svg aria-hidden="true"><use href="#i-star"/></svg>';
-    box.append(b);
-  }
+  mountStars(box);
   box.addEventListener('click', e => {
     const b = e.target.closest('button');
     const d = editing?.draft;
@@ -575,13 +588,7 @@ function buildSheetStars() {
     syncSheet();
     if (d.rating) bump(b);
   });
-  box.addEventListener('keydown', e => {
-    const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    const btns = $$('button', box);
-    btns[Math.min(4, Math.max(0, btns.indexOf(document.activeElement) + step))].focus();
-  });
+  box.addEventListener('keydown', starKeys);
 }
 
 function saveSheet() {
@@ -598,26 +605,24 @@ function saveSheet() {
     }
     const y = parseInt($('#s-in-year').value, 10);
     const year = y > 1800 && y < 2200 ? y : null;
+    const key = searchKey(title);
+    const dupe = movies.find(x => x !== m && x.searchKey === key && (!year || !x.year || x.year === year));
+    if (dupe) {
+      toast('That one is already on the list');
+      return;
+    }
     if (mode === 'add') {
-      const dupe = movies.find(x => x.searchKey === searchKey(title) && (!year || !x.year || x.year === year));
-      if (dupe) {
-        toast('That one is already on the list');
-        return;
-      }
       const nm = prepare({ id: `u-${Date.now().toString(36)}`, title, year, custom: true });
       store.custom.push(nm);
-      save();
       rebuildMovies();
       els.list.append(buildCard(nm));
-      lastOrder = '';
       toast('Added to the list');
     } else {
-      Object.assign(m, prepare({ ...m, title, year }));
-      Object.assign(store.custom.find(x => x.id === id), { title, year });
-      save();
+      prepare(Object.assign(m, { title, year })); // m is the object held in store.custom
       fillCard(m);
-      lastOrder = '';
     }
+    save();
+    lastOrder = '';
   }
   if (m && draft) {
     const before = watchedCount();
@@ -629,7 +634,6 @@ function saveSheet() {
     if (['seen', 'date', 'rating', 'fav', 'note'].some(k => draft[k] !== cur[k])) {
       setMark(m.id, draft);
       if (draft.seen) askPersist();
-      updateStats();
       celebrate(before, watchedCount());
     }
   }
@@ -727,14 +731,32 @@ function applyImport(mode) {
   toast(`Backup restored — ${plural(watchedCount(), 'movie')} watched`);
 }
 
-function resetAll() {
-  if (!confirm('Clear every mark, rating, note and favorite on this phone? Movies you added stay. Save a backup first if you might want them back.')) return;
-  if (!confirm('This can’t be undone. Clear everything?')) return;
+async function resetAll() {
+  const ok = await confirmSheet({
+    title: 'Clear all marks?',
+    text: 'Every tick, rating, note and favorite on this phone will be gone; movies you added stay. There is no undo, so save a backup first if you might want them back.',
+    button: 'Clear everything',
+  });
+  if (!ok) return;
   store.items = {};
   store.tonight = null;
   save();
   renderAll();
   toast('All marks cleared');
+}
+
+// ---------- confirm sheet ----------
+
+// Resolves true when the confirm button closed the sheet (its form has method="dialog").
+function confirmSheet({ title, text, button }) {
+  const dlg = els.confirmDlg;
+  $('#c-title').textContent = title;
+  $('#c-text').textContent = text;
+  $('#c-ok').textContent = button;
+  dlg.returnValue = '';
+  dlg.showModal();
+  $('#c-cancel').focus();
+  return new Promise(resolve => dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok'), { once: true }));
 }
 
 // ---------- toast & leaves ----------
@@ -816,15 +838,9 @@ function wire() {
     else if (e.target.closest('.fav')) toggleFav(id, e.target.closest('.fav'));
     else if (e.target.closest('.edit, .movie-open')) openSheet('edit', id);
   });
-  // star radio group: arrow keys move between stars
   els.list.addEventListener('keydown', e => {
-    const btn = e.target.closest('.stars button');
-    if (!btn) return;
-    const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    const btns = $$('button', btn.parentElement);
-    btns[Math.min(4, Math.max(0, btns.indexOf(btn) + step))].focus();
+    if (e.target.classList.contains('note') && e.key === 'Enter') e.target.blur();
+    else starKeys(e);
   });
   els.list.addEventListener('input', e => {
     if (!e.target.classList.contains('note')) return;
@@ -835,11 +851,7 @@ function wire() {
   els.list.addEventListener('focusout', e => {
     if (e.target.classList.contains('note')) saveNote(e.target.closest('.movie').dataset.id, e.target.value);
   });
-  els.list.addEventListener('keydown', e => {
-    if (e.target.classList.contains('note') && e.key === 'Enter') e.target.blur();
-  });
-
-  els.q.addEventListener('input', () => { ui.q = els.q.value; applyView(); });
+  els.q.addEventListener('input', () => { ui.q = els.q.value; applyView(false); });
   els.q.addEventListener('keydown', e => { if (e.key === 'Enter') els.q.blur(); });
   els.chips.forEach(c => c.addEventListener('click', () => {
     ui.filter = c.dataset.filter;
@@ -910,7 +922,7 @@ function wire() {
   $('#s-in-date').addEventListener('change', e => { if (editing?.draft && e.target.value) editing.draft.date = e.target.value; });
   $('#s-in-year').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
   els.sheet.addEventListener('close', () => { editing = null; });
-  for (const d of [els.sheet, els.importDlg]) {
+  for (const d of [els.sheet, els.importDlg, els.confirmDlg]) {
     d.addEventListener('click', e => { if (e.target === d) d.close(); }); // tap on the dimmed backdrop
   }
 

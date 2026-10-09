@@ -27,7 +27,7 @@ const REFRESH = process.argv.includes('--refresh');
 // Gilmore Girls aired 2000–2007, so prefer versions released by then (e.g. Psycho 1960 over 1998 is decided by votes).
 const LATEST_YEAR = 2007;
 
-const fold = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const slug = s => fold(s).replace(/['’]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const same = s => fold(s).replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim().replace(/^(the|a|an) /, '');
 
